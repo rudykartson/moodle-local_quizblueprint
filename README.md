@@ -1,136 +1,56 @@
-# Quiz Blueprint Builder (local_quizblueprint)
+# Quiz Blueprint Builder —
 
-Build a quiz's section / random-question structure from an Excel spreadsheet
-instead of clicking through the Quiz → Questions editor by hand.
+## What is this?
 
-Tested target: **Moodle 4.3+** (written against `MOODLE_403_STABLE` quiz
-internals; intended to also run on 4.4 / 5.x).
+Quiz Blueprint Builder lets you set up a quiz's structure — its sections and random-question rules — by filling in a spreadsheet instead of clicking through Moodle's question editor row by row.
 
----
+If you've ever needed to build a quiz with, say, 5 sections each pulling a random set of questions from a different category, you know how repetitive that is by hand. This plugin turns it into: download a template, fill in one row per section, upload it, review the preview, confirm.
 
-## What it does
+## Where to find it
 
-On a quiz's **Questions** page a new **Blueprint Import** button appears next to
-*Repaginate* / *Select multiple items*. From there a teacher can:
+Open any quiz and go to its **Questions** page (the same screen where you normally add or reorder questions). You'll see a new **Blueprint Import** button next to the existing *Repaginate* and *Select multiple items* options. It's also available as a link in the quiz's settings menu.
 
-1. **Download Template** – a 3-sheet `.xlsx`:
-   - *Blueprint* – the rows you fill in (one section per row).
-   - *Category Reference* – every question category in scope, its **Category ID**,
-     and how many usable questions it currently holds (auto-generated).
-   - *Question Reference* – category → question-name listing (optional aid).
-2. **Upload Blueprint** – upload the filled-in sheet.
-3. **Preview** – see exactly what will be created (per-section breakdown plus
-   totals). **Nothing is written until you confirm.**
-4. **Create Quiz Structure** – the structure is built inside a single DB
-   transaction; any error rolls the whole thing back (no half-built quiz).
+You'll only see this button if you have teacher/manager-level permissions on the course — students never see it.
 
-### Blueprint columns
+## How to use it
 
-| Column | Required | Notes |
+**Step 1 — Download the template.**
+Click **Download template**. You'll get an Excel file with three tabs:
+- **Blueprint** — the sheet you actually fill in, one row per section you want to create.
+- **Category Reference** — every question category available to this quiz, its ID, and how many usable questions it currently holds. Use this to look up which Category ID to type into your Blueprint rows.
+- **Question Reference** — a listing of which questions live in which category, if you want to double-check a category's contents before using it.
+
+**Step 2 — Fill in the Blueprint sheet.**
+Each row becomes one section of your quiz. The columns are:
+
+| Column | Required? | What to put there |
 |---|---|---|
-| Section Name | yes | Heading for the section. |
-| Category | yes | Category **ID** (preferred, unambiguous) or exact name. |
-| Random | yes | `Yes/No/Y/N/TRUE/FALSE/1/0`. **v1 builds random sections only** (must be Yes). |
-| Question Count | yes | Positive integer, ≤ available questions in that category. |
-| Mark Per Question | yes | Numeric > 0, decimals allowed. |
-| Shuffle | no | `Yes/No/...` – shuffles questions within the section. |
-| Page Break | no | See *Known limitations* below. |
+| Section Name | Yes | The heading students will see for this section. |
+| Category | Yes | The category's numeric **ID** from the Category Reference sheet (safest), or its exact name if it's unique. |
+| Random | Yes | `Yes` — this version only builds random-question sections, so this column must be Yes. |
+| Question Count | Yes | How many random questions to pull from that category. Must be a whole number, and can't be more than the "Available Questions" shown for that category. |
+| Mark Per Question | Yes | How many marks each question in the section is worth. |
+| Shuffle | No | `Yes`/`No` — whether questions within the section are shuffled for each student. |
+| Page Break | No | Informational only — see the note below. |
 
-Validation is all-or-nothing: if any row is invalid you get a list of every
-problem and nothing is imported.
+A quick note on page breaks: in Moodle, every section always starts on its own new page, so a page break between your sections happens automatically regardless of what you put in this column.
 
----
+**Step 3 — Upload it and preview.**
+Upload your completed spreadsheet. Before anything is created, you'll see a full preview: every section, its category, question count, marks, and a running total of questions and marks for the whole quiz. **Nothing is written to your quiz at this point** — it's just a preview.
 
-## Install
+If anything in your spreadsheet has a problem (a missing category, too many questions requested for a category, a non-numeric mark, etc.), you'll get a clear list of exactly which rows need fixing instead of a partial import.
 
-1. Copy this folder to `MOODLE/local/quizblueprint`.
-2. Visit **Site administration → Notifications** and complete the upgrade.
-3. The capability `local/quizblueprint:manage` is granted to **Editing Teacher**
-   and **Manager** by default (cloned from `mod/quiz:manage`).
+**Step 4 — Confirm and create.**
+Once the preview looks right, click **Confirm and create**. The sections and random-question slots are added to your quiz, and the quiz's total grade is recalculated automatically. You'll see a summary of how many sections and questions were created.
 
-Requires the `mod_quiz` module (core) and PhpSpreadsheet (bundled with Moodle —
-no Composer step needed).
+## Things to know before you use it
 
----
+- **It adds, it doesn't replace.** If your quiz already has questions or sections, the blueprint's sections are added on top of what's there — existing content is left alone.
+- **Random questions only, for now.** Every row builds a section of randomly-drawn questions from one category. Hand-picking specific fixed questions isn't supported in this version.
+- **Locked once a student has attempted the quiz.** If the quiz already has a real (non-preview) attempt, blueprint import is disabled — Moodle doesn't allow restructuring a quiz once students have started it, and this plugin respects that.
+- **All-or-nothing validation.** If any row in your spreadsheet is invalid, nothing is imported — you'll get the full list of what to fix and can just re-upload the corrected file.
+- **No personal data is stored.** The plugin doesn't collect student information; each import is simply recorded in Moodle's normal activity log.
 
-## Architecture (no core hacks)
+## New to this plugin? Try it safely first
 
-- **Button injection** – `lib.php` uses the
-  `before_standard_top_of_body_html` callback, scoped to pagetype
-  `mod-quiz-edit` and gated on the capability, to append the toolbar button via
-  a small dependency-free inline script. Core files are never modified.
-- **Settings-nav node** – also added under the module settings menu as an
-  official, JS-independent entry point.
-- **Structure writes** – go exclusively through the public
-  `\mod_quiz\quiz_settings` / `\mod_quiz\structure` APIs
-  (`add_random_questions`, `add_section_heading`, `set_section_shuffle`,
-  `update_slot_maxmark`, grade recompute via `get_grade_calculator()`),
-  so random slots land correctly in `question_set_references`.
-
----
-
-## Known limitations (v1)
-
-These are deliberate v1 scope choices, called out so there are no surprises:
-
-1. **Random-only sections.** Each row creates a section of *random* questions
-   drawn from one category. Hand-picked fixed questions are not part of v1
-   (the `Random` column must be Yes).
-2. **One section per page.** Each blueprint row becomes its own section starting
-   on its own page, so section boundaries and page breaks coincide. The
-   `Page Break` column is therefore structurally always-honored between
-   sections rather than a free-standing mid-section break.
-
----
-
-## ⚠️ Please verify on your instance before production use
-
-This plugin was written and **statically** verified (all files lint-clean) and
-the quiz-API calls were checked against the Moodle 4.3 source — but it has **not**
-been run against a live Moodle instance here. Before trusting it on a real
-course, smoke-test on a throwaway quiz and confirm these two highest-risk areas
-in particular:
-
-1. **Section / page sequencing** (`classes/local/blueprint_builder.php`).
-   The builder assumes page 1 already has a default section (`firstslot = 1`)
-   created with the quiz, updates that one for the first row, and adds new
-   section headings for subsequent rows on incrementing pages. Verify the first
-   section isn't duplicated and that later sections land on the right pages.
-2. **Question-count SQL** (`classes/local/category_helper.php`).
-   The available-questions count walks the 4.x bank schema
-   (`question_bank_entries` → latest `ready` `question_versions` → `question`,
-   excluding `qtype = 'random'`). Confirm the counts shown in the template match
-   what you see in the question bank for a few categories, including ones with
-   draft/old versions and subcategories.
-
-After confirming, treat this zip as the known-good baseline and apply
-incremental patches on top of it.
-
----
-
-## Running the automated tests
-
-The plugin ships PHPUnit tests covering the two highest-risk areas:
-
-- `tests/category_helper_test.php` — question counting against the 4.x bank
-  schema (ready vs draft versions, multiple versions per entry, `random` qtype
-  exclusion, subcategories, in-scope category resolution).
-- `tests/blueprint_builder_test.php` — structure creation (sections, pages,
-  per-slot marks, shuffle, recomputed total grade), the default-first-section
-  reuse (no duplicate section), and the attempt guard (build refuses once the
-  quiz has a non-preview attempt).
-
-From the Moodle root, initialise the test environment once, then run just this
-plugin's suite:
-
-```bash
-php admin/tool/phpunit/cli/init.php
-vendor/bin/phpunit --filter local_quizblueprint
-# or by path:
-vendor/bin/phpunit local/quizblueprint/tests
-```
-
-These require a configured PHPUnit test database (`$CFG->phpunit_prefix` and
-`$CFG->phpunit_dataroot` in `config.php`). They were written against the
-verified 4.3 APIs and schema but, like the rest of the plugin, should be run on
-your instance to confirm behaviour for your Moodle/DB version.
+Before relying on it for a real course, run through it once on a spare or practice quiz — download the template, fill in one or two simple sections, and confirm the structure comes out the way you expect. Once you're comfortable with it, it's a big time-saver for building out larger, category-based quizzes.
