@@ -8,7 +8,7 @@ If you've ever needed to build a quiz with, say, 5 sections each pulling a rando
 
 ## Where to find it
 
-Open any quiz and go to its **Questions** page (the same screen where you normally add or reorder questions). You'll see a new **Blueprint Import** button next to the existing *Repaginate* and *Select multiple items* options. It's also available as a link in the quiz's settings menu.
+Open any quiz and go to its **Questions** page (the same screen where you normally add or reorder questions). You'll see a new **Blueprint Import** button in more menu
 
 You'll only see this button if you have teacher/manager-level permissions on the course — students never see it.
 
