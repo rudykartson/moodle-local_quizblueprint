@@ -56,6 +56,10 @@ $renderer = $PAGE->get_renderer('local_quizblueprint');
 
 $uploadform = new upload_form($pageurl, ['cmid' => $cmid]);
 
+// Session-scoped store for the temp upload path between the PREVIEW and
+// CREATE steps. Uses MUC (db/caches.php) instead of $SESSION directly.
+$pathcache = \cache::make('local_quizblueprint', 'blueprintpath');
+
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('heading_main', 'local_quizblueprint'));
 
@@ -63,7 +67,7 @@ echo $OUTPUT->heading(get_string('heading_main', 'local_quizblueprint'));
 // Action: CREATE (confirmed) — build the quiz structure transactionally.
 // ---------------------------------------------------------------------------
 if ($action === 'create' && confirm_sesskey()) {
-    $storedpath = $SESSION->local_quizblueprint_path[$cmid] ?? null;
+    $storedpath = $pathcache->get($cmid) ?: null;
 
     if (!$storedpath || !file_exists($storedpath)) {
         echo $OUTPUT->notification(get_string('err_noupload', 'local_quizblueprint'), 'notifyproblem');
@@ -118,9 +122,9 @@ if ($action === 'create' && confirm_sesskey()) {
         ]);
         $event->trigger();
 
-        // Clean up the temporary file and session pointer.
+        // Clean up the temporary file and the cached path.
         @unlink($storedpath);
-        unset($SESSION->local_quizblueprint_path[$cmid]);
+        $pathcache->delete($cmid);
 
         echo $renderer->render_result($summary, $editurl);
     } catch (\Throwable $e) {
@@ -147,7 +151,7 @@ if ($data = $uploadform->get_data()) {
     $dir = make_temp_directory('local_quizblueprint');
     $storedpath = $dir . '/bp_' . $USER->id . '_' . $cmid . '.xlsx';
     @copy($tmpfile, $storedpath);
-    $SESSION->local_quizblueprint_path[$cmid] = $storedpath;
+    $pathcache->set($cmid, $storedpath);
 
     try {
         $cathelper = new category_helper($context);

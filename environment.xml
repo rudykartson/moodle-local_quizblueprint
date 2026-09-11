@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<COMPATIBILITY_MATRIX>
+
+  <PLUGIN name="local_quizblueprint">
+    <PHP_EXTENSIONS>
+      <!-- Required by the bundled PhpOffice/PhpSpreadsheet library (see /vendor and /thirdpartylibs.xml). -->
+      <PHP_EXTENSION name="zip" level="required">
+        <FEEDBACK>
+          <ON_ERROR message="The zip extension is required to read and write .xlsx blueprint workbooks." />
+        </FEEDBACK>
+      </PHP_EXTENSION>
+      <PHP_EXTENSION name="gd" level="required">
+        <FEEDBACK>
+          <ON_ERROR message="The gd extension is required to generate the downloadable .xlsx blueprint template." />
+        </FEEDBACK>
+      </PHP_EXTENSION>
+      <PHP_EXTENSION name="dom" level="required" />
+      <PHP_EXTENSION name="xml" level="required" />
+      <PHP_EXTENSION name="xmlreader" level="required" />
+      <PHP_EXTENSION name="xmlwriter" level="required" />
+      <PHP_EXTENSION name="simplexml" level="required" />
+      <PHP_EXTENSION name="mbstring" level="required" />
+      <PHP_EXTENSION name="ctype" level="required" />
+      <PHP_EXTENSION name="fileinfo" level="required" />
+    </PHP_EXTENSIONS>
+  </PLUGIN>
+
+</COMPATIBILITY_MATRIX>

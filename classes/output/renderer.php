@@ -24,7 +24,6 @@
 
 namespace local_quizblueprint\output;
 
-use html_writer;
 use moodle_url;
 use plugin_renderer_base;
 use stdClass;
@@ -32,6 +31,10 @@ use local_quizblueprint\local\blueprint_row;
 
 /**
  * Renderer for the Quiz Blueprint Builder pages.
+ *
+ * All markup lives in Mustache templates under templates/. This class is
+ * responsible only for assembling the templatedata arrays; it contains no
+ * inline HTML.
  *
  * @package    local_quizblueprint
  * @copyright  2026 BharatBenz Academy
@@ -47,22 +50,16 @@ class renderer extends plugin_renderer_base {
      * @return string
      */
     public function render_landing(moodle_url $templateurl, string $uploadformhtml): string {
-        $out = '';
+        $data = [
+            'templateurl' => $templateurl->out(false),
+            'downloadtemplatelabel' => get_string('downloadtemplate', 'local_quizblueprint'),
+            'downloadtemplatehelp' => get_string('downloadtemplate_help', 'local_quizblueprint'),
+            'stepdownload' => get_string('step_download', 'local_quizblueprint'),
+            'stepupload' => get_string('step_upload', 'local_quizblueprint'),
+            'uploadformhtml' => $uploadformhtml,
+        ];
 
-        // Step 1: download template.
-        $out .= html_writer::tag('h3', get_string('step_download', 'local_quizblueprint'));
-        $out .= html_writer::tag('p',
-            get_string('downloadtemplate_help', 'local_quizblueprint'));
-        $out .= html_writer::link($templateurl,
-            get_string('downloadtemplate', 'local_quizblueprint'),
-            ['class' => 'btn btn-primary mb-4']);
-
-        // Step 2: upload.
-        $out .= html_writer::tag('h3', get_string('step_upload', 'local_quizblueprint'),
-            ['class' => 'mt-4']);
-        $out .= $uploadformhtml;
-
-        return $out;
+        return $this->render_from_template('local_quizblueprint/landing', $data);
     }
 
     /**
@@ -72,14 +69,14 @@ class renderer extends plugin_renderer_base {
      * @return string
      */
     public function render_validation_errors(array $errors): string {
-        $items = '';
-        foreach ($errors as $error) {
-            $items .= html_writer::tag('li', s($error));
-        }
-        $list = html_writer::tag('ul', $items, ['class' => 'mb-0']);
-        $body = html_writer::tag('strong',
-            get_string('err_validationfailed', 'local_quizblueprint')) . $list;
-        return html_writer::div($body, 'alert alert-danger', ['role' => 'alert']);
+        $data = [
+            'heading' => get_string('err_validationfailed', 'local_quizblueprint'),
+            'errors' => array_map(static function(string $error): array {
+                return ['message' => $error];
+            }, $errors),
+        ];
+
+        return $this->render_from_template('local_quizblueprint/validation_errors', $data);
     }
 
     /**
@@ -94,84 +91,58 @@ class renderer extends plugin_renderer_base {
      */
     public function render_preview(array $rows, moodle_url $confirmurl, int $cmid,
             int $existingquestions = 0, int $existingsections = 0): string {
-        $out = '';
-        $out .= html_writer::tag('h3', get_string('step_preview', 'local_quizblueprint'));
-
-        // Warn if the quiz already has content -- the import adds to it, not replaces.
-        if ($existingquestions > 0) {
-            $out .= html_writer::div(
-                get_string('warn_existingcontent', 'local_quizblueprint', (object) [
-                    'questions' => $existingquestions,
-                    'sections' => $existingsections,
-                ]),
-                'alert alert-warning');
-        }
-
-        $out .= html_writer::div(
-            get_string('preview_nochanges', 'local_quizblueprint'),
-            'alert alert-info');
 
         $totalquestions = 0;
         $totalmarks = 0.0;
+        $sections = [];
 
         foreach ($rows as $index => $row) {
             $totalquestions += $row->questioncount;
             $totalmarks += $row->questioncount * $row->markperquestion;
 
-            $title = get_string('preview_section', 'local_quizblueprint') . ' ' .
-                ($index + 1) . ': ' . s($row->sectionname);
-
-            $details = '';
-            $details .= $this->detail_line('preview_category', s($row->categoryraw) .
-                ' (ID ' . $row->categoryid . ')');
-            $details .= $this->detail_line('preview_randomquestions', $row->questioncount);
-            $details .= $this->detail_line('preview_marks', format_float($row->markperquestion, -1));
-            $details .= $this->detail_line('preview_shuffle',
-                $row->shuffle ? get_string('yes') : get_string('no'));
-
-            $card = html_writer::tag('div',
-                html_writer::tag('div', $title, ['class' => 'card-header font-weight-bold']) .
-                html_writer::tag('div', html_writer::tag('ul', $details,
-                    ['class' => 'list-unstyled mb-0']), ['class' => 'card-body']),
-                ['class' => 'card mb-3']);
-            $out .= $card;
+            $sections[] = [
+                'title' => get_string('preview_section', 'local_quizblueprint') . ' ' .
+                    ($index + 1) . ': ' . $row->sectionname,
+                'details' => [
+                    $this->detail(
+                        'preview_category',
+                        $row->categoryraw . ' (ID ' . $row->categoryid . ')'
+                    ),
+                    $this->detail('preview_randomquestions', $row->questioncount),
+                    $this->detail('preview_marks', format_float($row->markperquestion, -1)),
+                    $this->detail('preview_shuffle',
+                        $row->shuffle ? get_string('yes') : get_string('no')),
+                ],
+            ];
         }
 
-        // Summary.
-        $summarybody = html_writer::tag('p',
-            get_string('preview_totalquestions', 'local_quizblueprint', $totalquestions)) .
-            html_writer::tag('p',
-            get_string('preview_totalmarks', 'local_quizblueprint',
-                format_float($totalmarks, -1)));
-        $out .= html_writer::tag('div',
-            html_writer::tag('div', get_string('preview_summary', 'local_quizblueprint'),
-                ['class' => 'card-header font-weight-bold']) .
-            html_writer::tag('div', $summarybody, ['class' => 'card-body']),
-            ['class' => 'card mb-3']);
+        $data = [
+            'stepPreview' => get_string('step_preview', 'local_quizblueprint'),
+            'hasexistingcontent' => $existingquestions > 0,
+            'existingcontentwarning' => $existingquestions > 0
+                ? get_string('warn_existingcontent', 'local_quizblueprint', (object) [
+                    'questions' => $existingquestions,
+                    'sections' => $existingsections,
+                ])
+                : '',
+            'nochangesnotice' => get_string('preview_nochanges', 'local_quizblueprint'),
+            'sections' => $sections,
+            'summarylabel' => get_string('preview_summary', 'local_quizblueprint'),
+            'totalquestionstext' => get_string('preview_totalquestions', 'local_quizblueprint',
+                $totalquestions),
+            'totalmarkstext' => get_string('preview_totalmarks', 'local_quizblueprint',
+                format_float($totalmarks, -1)),
+            'pagebreaknote' => get_string('note_pagebreak', 'local_quizblueprint'),
+            'confirmurl' => $confirmurl->out(false),
+            'cmid' => $cmid,
+            'sesskey' => sesskey(),
+            'confirmlabel' => get_string('confirmcreate', 'local_quizblueprint'),
+            'cancelurl' => (new moodle_url('/local/quizblueprint/index.php',
+                ['cmid' => $cmid]))->out(false),
+            'cancellabel' => get_string('cancel', 'local_quizblueprint'),
+        ];
 
-        $out .= html_writer::div(get_string('note_pagebreak', 'local_quizblueprint'),
-            'text-muted small mb-3');
-
-        // Confirm form (POST + sesskey).
-        $hidden = html_writer::empty_tag('input',
-                ['type' => 'hidden', 'name' => 'cmid', 'value' => $cmid]) .
-            html_writer::empty_tag('input',
-                ['type' => 'hidden', 'name' => 'action', 'value' => 'create']) .
-            html_writer::empty_tag('input',
-                ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-        $confirmbtn = html_writer::empty_tag('input', [
-            'type' => 'submit',
-            'class' => 'btn btn-primary',
-            'value' => get_string('confirmcreate', 'local_quizblueprint'),
-        ]);
-        $cancel = html_writer::link(
-            new moodle_url('/local/quizblueprint/index.php', ['cmid' => $cmid]),
-            get_string('cancel', 'local_quizblueprint'),
-            ['class' => 'btn btn-secondary ml-2']);
-        $out .= html_writer::tag('form', $hidden . $confirmbtn . $cancel,
-            ['method' => 'post', 'action' => $confirmurl->out(false)]);
-
-        return $out;
+        return $this->render_from_template('local_quizblueprint/preview', $data);
     }
 
     /**
@@ -182,26 +153,27 @@ class renderer extends plugin_renderer_base {
      * @return string
      */
     public function render_result(stdClass $summary, moodle_url $backurl): string {
-        $out = $this->output->notification(
-            get_string('import_success', 'local_quizblueprint'), 'notifysuccess');
-        $out .= html_writer::tag('p',
-            get_string('import_summary', 'local_quizblueprint', $summary));
-        $out .= html_writer::link($backurl,
-            get_string('backtoquiz', 'local_quizblueprint'),
-            ['class' => 'btn btn-primary']);
-        return $out;
+        $data = [
+            'successmessage' => get_string('import_success', 'local_quizblueprint'),
+            'summarytext' => get_string('import_summary', 'local_quizblueprint', $summary),
+            'backurl' => $backurl->out(false),
+            'backlabel' => get_string('backtoquiz', 'local_quizblueprint'),
+        ];
+
+        return $this->render_from_template('local_quizblueprint/result', $data);
     }
 
     /**
-     * Helper: a labelled detail list item.
+     * Helper: build a labelled detail entry for the preview template.
      *
      * @param string $stringkey lang key for the label.
-     * @param mixed $value already-escaped or scalar value.
-     * @return string
+     * @param mixed $value scalar value (auto-escaped by the Mustache engine).
+     * @return array{label: string, value: mixed}
      */
-    protected function detail_line(string $stringkey, $value): string {
-        return html_writer::tag('li',
-            html_writer::tag('strong',
-                get_string($stringkey, 'local_quizblueprint') . ': ') . $value);
+    protected function detail(string $stringkey, $value): array {
+        return [
+            'label' => get_string($stringkey, 'local_quizblueprint'),
+            'value' => $value,
+        ];
     }
 }

@@ -85,32 +85,44 @@ class blueprint_builder {
 
         $settings = \mod_quiz\quiz_settings::create_for_cmid($this->cmid);
 
-        // Refuse to touch a quiz that already has attempts -- changing its
-        // structure after students have attempted it would corrupt grading.
-        $guard = \mod_quiz\structure::create_for_quiz($settings);
-        if (!$guard->can_be_edited()) {
+        // One structure object for the whole import.
+        $structure = \mod_quiz\structure::create_for_quiz($settings);
+
+        // Refuse to touch a quiz that already has attempts.
+        if (!$structure->can_be_edited()) {
             throw new \moodle_exception('err_quizhasattempts', 'local_quizblueprint');
         }
 
         $quiz = $settings->get_quiz();
 
+        /*
+        * Preload the existing first section once, before entering the rows loop.
+        *
+        * This avoids executing a database query from ensure_section() for
+        * every imported row.
+        */
+        $existingfirstsection = $DB->get_record(
+            'quiz_sections',
+            [
+                'quizid' => $quiz->id,
+                'firstslot' => 1,
+            ],
+            '*',
+            IGNORE_MISSING
+        );
+
         $sectionscreated = 0;
         $slotscreated = 0;
 
-        // One transaction wraps the whole import. If any row fails the entire
-        // import is rolled back, so the quiz is never left half-built.
+        // One transaction wraps the whole import.
         $transaction = $DB->start_delegated_transaction();
+
         try {
             $page = 1;
             $isfirstrow = true;
 
             foreach ($rows as $row) {
-                // (Re)build the live structure so it reflects previous rows.
-                $structure = \mod_quiz\structure::create_for_quiz($settings);
-
                 // --- 1. Add the random question slots for this section. ---
-                // Each of the $questioncount slots draws one question from the
-                // category. They are all placed on the current page.
                 $filtercondition = [
                     'filter' => [
                         'category' => [
@@ -120,27 +132,42 @@ class blueprint_builder {
                         ],
                     ],
                 ];
-                $structure->add_random_questions($page, $row->questioncount, $filtercondition);
+
+                $structure->add_random_questions(
+                    $page,
+                    $row->questioncount,
+                    $filtercondition
+                );
+
                 $slotscreated += $row->questioncount;
 
                 // --- 2. Create / update the section heading for this page. ---
-                $structure = \mod_quiz\structure::create_for_quiz($settings);
-                $sectionid = $this->ensure_section($structure, $quiz->id, $page, $row, $isfirstrow);
+                $sectionid = $this->ensure_section(
+                    $structure,
+                    $page,
+                    $row,
+                    $isfirstrow,
+                    $existingfirstsection
+                );
+
                 $isfirstrow = false;
                 $sectionscreated++;
 
                 // --- 3. Set the mark for every slot in this section. ---
-                $structure = \mod_quiz\structure::create_for_quiz($settings);
                 foreach ($structure->get_slots_in_section($sectionid) as $slotnumber) {
                     $slot = $structure->get_slot_by_number($slotnumber);
-                    $structure->update_slot_maxmark($slot, $row->markperquestion);
+
+                    $structure->update_slot_maxmark(
+                        $slot,
+                        $row->markperquestion
+                    );
                 }
 
-                // Next section goes on the next page (forces the page break).
+                // Next section goes on the next page.
                 $page++;
             }
 
-            // --- 4. Recalculate the quiz total grade (sumgrades). ---
+            // --- 4. Recalculate the quiz total grade. ---
             $settings->get_grade_calculator()->recompute_quiz_sumgrades();
 
             $transaction->allow_commit();
@@ -152,8 +179,10 @@ class blueprint_builder {
         $result = new \stdClass();
         $result->sections = $sectionscreated;
         $result->slots = $slotscreated;
+
         return $result;
     }
+
 
     /**
      * Ensure the section heading exists for the given page and apply its settings.
@@ -169,28 +198,41 @@ class blueprint_builder {
      * @param bool $isfirstrow
      * @return int the section id.
      */
-    protected function ensure_section(\mod_quiz\structure $structure, int $quizid, int $page,
-            blueprint_row $row, bool $isfirstrow): int {
-        global $DB;
+    protected function ensure_section(
+        \mod_quiz\structure $structure,
+        int $page,
+        blueprint_row $row,
+        bool $isfirstrow,
+        ?\stdClass $existingfirstsection
+    ): int {
+        if ($isfirstrow && $existingfirstsection) {
+            // Both mutators write through the same in-memory structure, so
+            // there is no need to reload/re-query quiz_sections/quiz_slots.
+            $structure->set_section_heading(
+                $existingfirstsection->id,
+                $row->sectionname
+            );
 
-        if ($isfirstrow) {
-            $existing = $DB->get_record('quiz_sections',
-                ['quizid' => $quizid, 'firstslot' => 1], '*', IGNORE_MISSING);
-            if ($existing) {
-                $structure->set_section_heading($existing->id, $row->sectionname);
-                // Reload before changing shuffle to keep cached data consistent.
-                $structure = \mod_quiz\structure::create_for_quiz(
-                    \mod_quiz\quiz_settings::create($quizid));
-                $structure->set_section_shuffle($existing->id, $row->shuffle ? 1 : 0);
-                return (int) $existing->id;
-            }
+            $structure->set_section_shuffle(
+                $existingfirstsection->id,
+                $row->shuffle ? 1 : 0
+            );
+
+            return (int) $existingfirstsection->id;
         }
 
         // Add a brand new section heading at the first slot of this page.
-        $sectionid = $structure->add_section_heading($page, $row->sectionname);
-        $structure = \mod_quiz\structure::create_for_quiz(
-            \mod_quiz\quiz_settings::create($quizid));
-        $structure->set_section_shuffle($sectionid, $row->shuffle ? 1 : 0);
+        $sectionid = $structure->add_section_heading(
+            $page,
+            $row->sectionname
+        );
+
+        $structure->set_section_shuffle(
+            $sectionid,
+            $row->shuffle ? 1 : 0
+        );
+
         return (int) $sectionid;
     }
+
 }

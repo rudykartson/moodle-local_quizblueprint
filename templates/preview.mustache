@@ -1,0 +1,106 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_quizblueprint/preview
+
+    Step 3: preview of the sections/slots that will be created, plus the
+    confirm form.
+
+    Context variables required for this template:
+    * stepPreview - "Step 3 — Preview and confirm" heading.
+    * hasexistingcontent - true if the quiz already has questions.
+    * existingcontentwarning - pre-rendered warning string (only used when hasexistingcontent is true).
+    * nochangesnotice - "No changes have been made yet..." string.
+    * sections - array of {title, details: [{label, value}]}.
+    * totalquestionstext - "Total questions: N" string.
+    * totalmarkstext - "Total marks: N" string.
+    * summarylabel - "Summary" heading for the totals card.
+    * pagebreaknote - footnote about automatic page breaks.
+    * confirmurl - action URL for the confirm form (POST).
+    * cmid - course module id, embedded as a hidden field.
+    * sesskey - session key, embedded as a hidden field.
+    * confirmlabel - submit button label.
+    * cancelurl - URL to go back to the landing page.
+    * cancellabel - cancel link label.
+
+    Example context (json):
+    {
+        "stepPreview": "Step 3 — Preview and confirm",
+        "hasexistingcontent": false,
+        "existingcontentwarning": "",
+        "nochangesnotice": "No changes have been made yet.",
+        "sections": [
+            {
+                "title": "Section 1: Warm-up",
+                "details": [
+                    {"label": "Category", "value": "Easy (ID 12)"},
+                    {"label": "Random questions", "value": "5"}
+                ]
+            }
+        ],
+        "totalquestionstext": "Total questions: 5",
+        "totalmarkstext": "Total marks: 5",
+        "summarylabel": "Summary",
+        "pagebreaknote": "Note: each section always begins on a new page.",
+        "confirmurl": "https://example.com/local/quizblueprint/index.php",
+        "cmid": 2,
+        "sesskey": "abc123",
+        "confirmlabel": "Confirm and create",
+        "cancelurl": "https://example.com/local/quizblueprint/index.php?cmid=2",
+        "cancellabel": "Cancel"
+    }
+}}
+<div class="local-quizblueprint-preview">
+    <h3>{{stepPreview}}</h3>
+
+    {{#hasexistingcontent}}
+    <div class="alert alert-warning">{{existingcontentwarning}}</div>
+    {{/hasexistingcontent}}
+
+    <div class="alert alert-info">{{nochangesnotice}}</div>
+
+    {{#sections}}
+    <div class="card mb-3">
+        <div class="card-header font-weight-bold">{{title}}</div>
+        <div class="card-body">
+            <ul class="list-unstyled mb-0">
+                {{#details}}
+                <li><strong>{{label}}:</strong> {{value}}</li>
+                {{/details}}
+            </ul>
+        </div>
+    </div>
+    {{/sections}}
+
+    <div class="card mb-3">
+        <div class="card-header font-weight-bold">{{summarylabel}}</div>
+        <div class="card-body">
+            <p>{{totalquestionstext}}</p>
+            <p>{{totalmarkstext}}</p>
+        </div>
+    </div>
+
+    <div class="text-muted small mb-3">{{pagebreaknote}}</div>
+
+    <form method="post" action="{{confirmurl}}">
+        <input type="hidden" name="cmid" value="{{cmid}}">
+        <input type="hidden" name="action" value="create">
+        <input type="hidden" name="sesskey" value="{{sesskey}}">
+        <input type="submit" class="btn btn-primary" value="{{confirmlabel}}">
+        <a href="{{cancelurl}}" class="btn btn-secondary ml-2">{{cancellabel}}</a>
+    </form>
+</div>

@@ -77,14 +77,14 @@ function local_quizblueprint_extend_settings_navigation(settings_navigation $set
  * Inject the "Blueprint Import" button into the quiz Questions-page toolbar.
  *
  * The quiz editing toolbar (Repaginate | Select multiple items) has no public
- * server-side extension API, so we add a button client-side. The JavaScript is
- * inlined via $PAGE->requires->js_amd_inline() (no build step required) and is
- * scoped strictly to the mod-quiz-edit page and to users who hold the
+ * server-side extension API, so we add a button client-side. The button is
+ * inserted by the local_quizblueprint/blueprintimport AMD module (see
+ * amd/src/blueprintimport.js), loaded via $PAGE->requires->js_call_amd(). It
+ * is scoped strictly to the mod-quiz-edit page and to users who hold the
  * capability, so it has no effect anywhere else.
  *
- * @return string HTML to inject (empty in all cases; work is done via JS).
+ * @return string HTML to inject (empty in all cases; work is done via the AMD module).
  */
-
 function local_quizblueprint_before_standard_top_of_body_html() {
     global $PAGE;
 
@@ -107,80 +107,3 @@ function local_quizblueprint_before_standard_top_of_body_html() {
 
     return '';
 }
-
-// function local_quizblueprint_before_standard_top_of_body_html() {
-//     global $PAGE;
-
-//     if (!isset($PAGE->pagetype) || $PAGE->pagetype !== 'mod-quiz-edit') {
-//         return '';
-//     }
-//     if (empty($PAGE->cm) || $PAGE->cm->modname !== 'quiz') {
-//         return '';
-//     }
-
-//     $context = context_module::instance($PAGE->cm->id);
-//     if (!has_capability('local/quizblueprint:manage', $context)) {
-//         return '';
-//     }
-
-//     $url = (new moodle_url('/local/quizblueprint/index.php', ['cmid' => $PAGE->cm->id]))->out(false);
-//     $label = get_string('blueprintimport', 'local_quizblueprint');
-
-//     // Small, dependency-free script. It locates the toolbar that holds the
-//     // Repaginate / Select-multiple controls and appends a matching button.
-//     $js = <<<'JS'
-// (function() {
-//     function insertButton() {
-//         if (document.getElementById('local-quizblueprint-btn')) {
-//             return true;
-//         }
-//         // The repaginate and select-multiple controls share a container on the
-//         // quiz edit page. Try the known anchors, falling back gracefully.
-//         var anchor = document.querySelector('.repaginatecommand')
-//                   || document.getElementById('repaginatecommand')
-//                   || document.querySelector('.selectmultiplecommand')
-//                   || document.querySelector('.edit-toolbar')
-//                   || document.querySelector('.mod_quiz_edit_forms');
-//         if (!anchor) {
-//             return false;
-//         }
-//         var container = anchor.closest('.edit-toolbar') || anchor.parentNode;
-//         if (!container) {
-//             return false;
-//         }
-//         var wrap = document.createElement('span');
-//         wrap.className = 'blueprintimportcommand';
-//         wrap.style.marginInlineStart = '0.5rem';
-//         var a = document.createElement('a');
-//         a.id = 'local-quizblueprint-btn';
-//         a.href = {$this_safe_url};
-//         a.className = 'btn btn-secondary';
-//         a.textContent = {$this_safe_label};
-//         wrap.appendChild(a);
-//         container.appendChild(wrap);
-//         return true;
-//     }
-//     if (!insertButton()) {
-//         // The toolbar can render slightly after page load; observe briefly.
-//         var tries = 0;
-//         var iv = setInterval(function() {
-//             tries++;
-//             if (insertButton() || tries > 40) {
-//                 clearInterval(iv);
-//             }
-//         }, 150);
-//     }
-// })();
-// JS;
-
-//     // Inject the URL and label as JSON literals to avoid any escaping issues.
-//     $js = str_replace(
-//         ['{$this_safe_url}', '{$this_safe_label}'],
-//         [json_encode($url), json_encode($label)],
-//         $js
-//     );
-
-//     $PAGE->requires->js_amd_inline($js);
-
-//     return '';
-// }

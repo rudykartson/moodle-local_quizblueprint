@@ -99,3 +99,5 @@ $string['privacy:metadata'] = 'The Quiz Blueprint Builder plugin does not store 
 $string['event_blueprint_imported'] = 'Quiz blueprint imported';
 
 $string['event_blueprint_imported_desc'] = "The user with id '{\$a->userid}' imported a quiz blueprint into the quiz with course module id '{\$a->cmid}', creating {\$a->sections} section(s) and {\$a->slots} random question slot(s).";
+
+$string['err_missingvendor'] = 'A required third-party library is missing from this plugin ({$a}).';

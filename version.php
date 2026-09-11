@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_quizblueprint';
-$plugin->version   = 2026061300;        // YYYYMMDDXX.
+$plugin->version   = 2026091100;        // YYYYMMDDXX.
 $plugin->requires  = 2023100900;        // Moodle 4.3.0. Tested target: 4.3 / 4.4 / 5.x.
 $plugin->maturity  = MATURITY_STABLE;
 $plugin->release   = 'v1.0.0';

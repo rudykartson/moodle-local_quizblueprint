@@ -183,12 +183,37 @@ class category_helper {
      */
     protected function get_subcategory_ids(int $categoryid): array {
         global $DB;
-        $result = [];
-        $children = $DB->get_records('question_categories', ['parent' => $categoryid], '', 'id');
-        foreach ($children as $child) {
-            $result[] = (int) $child->id;
-            $result = array_merge($result, $this->get_subcategory_ids((int) $child->id));
+
+        // Load all categories once.
+        $categories = $DB->get_records(
+            'question_categories',
+            null,
+            '',
+            'id, parent'
+        );
+
+        // Build parent => children map.
+        $children = [];
+        foreach ($categories as $category) {
+            $parentid = (int) $category->parent;
+            $children[$parentid][] = (int) $category->id;
         }
+
+        // Traverse the tree in memory.
+        $result = [];
+        $stack = $children[$categoryid] ?? [];
+
+        while ($stack) {
+            $childid = array_pop($stack);
+            $result[] = $childid;
+
+            if (isset($children[$childid])) {
+                foreach ($children[$childid] as $grandchildid) {
+                    $stack[] = $grandchildid;
+                }
+            }
+        }
+
         return $result;
     }
 }

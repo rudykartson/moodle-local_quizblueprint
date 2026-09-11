@@ -16,8 +16,6 @@
 
 namespace local_quizblueprint\local;
 
-use PhpOffice\PhpSpreadsheet\IOFactory;
-
 defined('MOODLE_INTERNAL') || die();
 
 /**
@@ -26,6 +24,12 @@ defined('MOODLE_INTERNAL') || die();
  * The parser is deliberately tolerant: it maps columns by header name (so
  * column order does not matter) and returns raw cell strings. All semantic
  * validation is performed separately by {@see validator}.
+ *
+ * PhpOffice/PhpSpreadsheet is bundled with this plugin under /vendor (see
+ * thirdpartylibs.xml) so it works on production sites that cannot run
+ * Composer or any build step. The autoloader is required lazily, only when
+ * parsing is actually needed, and its absence throws a clear Moodle error
+ * instead of a raw "Class not found" fatal.
  *
  * @package    local_quizblueprint
  * @copyright  2026 BharatBenz Academy
@@ -41,6 +45,45 @@ class excel_parser {
     const KEY_MARK      = 'mark';
     const KEY_SHUFFLE   = 'shuffle';
     const KEY_PAGEBREAK = 'pagebreak';
+
+    /**
+     * Make sure the bundled PhpSpreadsheet library is loaded.
+     *
+     * @throws \moodle_exception if vendor/autoload.php is missing from the
+     *         plugin (i.e. the release package was built without it).
+     */
+    protected function ensure_library_loaded(): void {
+        global $CFG;
+
+        if (class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
+            return;
+        }
+
+        $autoload = $CFG->dirroot . '/local/quizblueprint/vendor/autoload.php';
+        if (!is_readable($autoload)) {
+            throw new \moodle_exception(
+                'err_missingvendor',
+                'local_quizblueprint',
+                '',
+                null,
+                'vendor/autoload.php not found. Reinstall the plugin from an official release ' .
+                'zip that bundles its PHP dependencies (see thirdpartylibs.xml); do not install ' .
+                'from a source checkout without running composer install.'
+            );
+        }
+
+        require_once($autoload);
+
+        if (!class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
+            throw new \moodle_exception(
+                'err_missingvendor',
+                'local_quizblueprint',
+                '',
+                null,
+                'vendor/autoload.php was loaded but PhpOffice\\PhpSpreadsheet\\IOFactory is still missing.'
+            );
+        }
+    }
 
     /**
      * Map of lowercased header text => canonical key.
@@ -67,12 +110,10 @@ class excel_parser {
      * @throws \moodle_exception on unreadable file or missing Blueprint sheet.
      */
     public function parse(string $path): array {
-        global $CFG;
-        // PhpSpreadsheet ships with Moodle but is not globally autoloaded.
-        // require_once($CFG->libdir . '/phpspreadsheet/vendor/autoload.php');
+        $this->ensure_library_loaded();
 
         try {
-            $reader = IOFactory::createReaderForFile($path);
+            $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($path);
             $reader->setReadDataOnly(true);
             $spreadsheet = $reader->load($path);
         } catch (\Throwable $e) {
